@@ -1,0 +1,96 @@
+version: '3.8'
+
+services:
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.3.2 # Use a specific version
+    container_name: zookeeper
+    ports:
+      - "2181:2181"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+
+  kafka:
+    image: confluentinc/cp-kafka:7.3.2 # Use a specific version matching Zookeeper
+    container_name: kafka
+    ports:
+      # Expose the internal port 9092 and map it if needed for external tools
+      - "9092:9092"
+       # Port for external connections (if running Docker on different host/network)
+      - "29092:29092"
+    depends_on:
+      - zookeeper
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'
+      # Listeners configuration
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092 # For internal and external access
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      # Topic auto-creation (useful for dev, might disable in prod)
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      # Topics to create on startup (optional, consumer/producer can create them if auto.create is true)
+      KAFKA_CREATE_TOPICS: "validated_orders:1:1,order_status_updates:1:1,db_write_order_status:1:1" # Topic:Partitions:ReplicationFactor
+
+  redis:
+    image: redis:7.0-alpine # Use a specific version
+    container_name: redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+  postgres:
+    image: postgres:15-alpine # Use a specific version
+    container_name: postgres
+    ports:
+      - "5432:5432" # Expose only if needed for direct inspection
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: food_delivery_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      # Add init scripts here if needed:
+      # - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+
+  order_manager:
+    build: . # Build from the Dockerfile in the current directory
+    container_name: order_manager
+    ports:
+      - "8000:8000"
+    depends_on:
+      - kafka
+      - redis
+    environment:
+      # Pass configuration to the service
+      KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
+      REDIS_HOST: "redis"
+      # Other config vars if needed
+    volumes:
+      # Mount local code for development (optional, remove for production image)
+      - ./order_manager:/app/order_manager
+    command: ["uvicorn", "order_manager.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"] # Add --reload for dev
+
+  # --- Placeholder for the Database Writer ---
+  # postgres_writer:
+  #   image: your-postgres-writer-image # Replace with your actual image
+  #   container_name: postgres_writer
+  #   depends_on:
+  #     - kafka
+  #     - postgres
+  #   environment:
+  #     KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
+  #     DB_WRITE_ORDER_STATUS_TOPIC: "db_write_order_status"
+  #     POSTGRES_HOST: "postgres"
+  #     POSTGRES_USER: "user"
+  #     POSTGRES_PASSWORD: "password"
+  #     POSTGRES_DB: "food_delivery_db"
+  #     # ... other necessary env vars
+  #   restart: on-failure
+
+volumes:
+  redis_data:
+  postgres_data:
