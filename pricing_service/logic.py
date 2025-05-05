@@ -5,9 +5,9 @@ logger = logging.getLogger(__name__)
 
 # --- Hardcoded Rules (Replace with dynamic logic/DB lookups later) ---
 DISCOUNT_THRESHOLD_USD = 50.00
-DISCOUNT_PERCENTAGE = 0.10 # 10% discount if base total exceeds threshold
+DISCOUNT_PERCENTAGE = 0.10
 FLAT_DELIVERY_FEE_USD = 5.00
-# --- ---
+
 
 def calculate_final_price(request: schemas.PriceCalculationRequest) -> schemas.PriceCalculationResponse:
     """

@@ -1,8 +1,7 @@
 version: '3.8'
 
 services:
-  # --- zookeeper, kafka, redis, postgres definitions ---
-  # (Ensure they have healthchecks as defined previously)
+
   zookeeper:
     image: confluentinc/cp-zookeeper:7.3.2
     container_name: zookeeper
@@ -60,7 +59,7 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-food_delivery_db}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./postgres_init:/docker-entrypoint-initdb.d # Assuming init scripts are here
+      - ./postgres_init:/docker-entrypoint-initdb.d
     healthcheck:
        test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
        interval: 10s
@@ -86,23 +85,21 @@ services:
       APP_PORT: 8001
       PYTHONUNBUFFERED: 1
     volumes:
-      - ./inventory_service:/app/inventory_service # Mount for dev
-    # Add healthcheck to inventory service if needed
+      - ./inventory_service:/app/inventory_service
 
-  pricing_service: # New Pricing Service
+
+  pricing_service:
     build:
       context: .
       dockerfile: pricing_service/Dockerfile
     container_name: pricing_service
     ports:
-      - "8002:8002" # Expose Pricing Service port
+      - "8002:8002"
     environment:
       APP_PORT: 8002
       PYTHONUNBUFFERED: 1
     volumes:
-      - ./pricing_service:/app/pricing_service # Mount for dev
-    # No external DB/service dependencies for this simple version
-    # Add healthcheck? e.g., curl localhost:8002/health
+      - ./pricing_service:/app/pricing_service
 
   order_manager:
     build:
@@ -111,23 +108,23 @@ services:
     container_name: order_manager
     ports:
       - "8000:8000"
-    depends_on: # Update dependencies
+    depends_on:
       kafka:
         condition: service_healthy
       redis:
         condition: service_healthy
       inventory_service:
-        condition: service_started # Change to service_healthy if inventory adds healthcheck
-      pricing_service: # Add dependency
-        condition: service_started # Change to service_healthy if pricing adds healthcheck
+        condition: service_started
+      pricing_service:
+        condition: service_started
     environment:
       KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
       REDIS_HOST: "redis"
       INVENTORY_SERVICE_URL: "http://inventory_service:8001"
-      PRICING_SERVICE_URL: "http://pricing_service:8002" # Add Pricing Service URL
+      PRICING_SERVICE_URL: "http://pricing_service:8002"
       PYTHONUNBUFFERED: 1
     volumes:
-      - ./order_manager:/app/order_manager # Mount for dev
+      - ./order_manager:/app/order_manager
 
 volumes:
   redis_data:

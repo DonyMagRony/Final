@@ -10,8 +10,7 @@ class PricingItem(BaseModel):
 # Request body for the calculation endpoint
 class PriceCalculationRequest(BaseModel):
     order_id: str # For correlation/logging
-    items: List[PricingItem] = Field(..., min_length=1) # Must have at least one item
-    # Add other potential factors later: user_id, delivery_info etc.
+    items: List[PricingItem] = Field(..., min_length=1)
 
 # Response body
 class PriceCalculationResponse(BaseModel):

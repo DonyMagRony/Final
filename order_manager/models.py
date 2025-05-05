@@ -5,7 +5,7 @@ import uuid
 class OrderItem(BaseModel):
     item_id: str
     quantity: int
-    price: float # Price per item at the time of order
+    price: float
 
 class ValidatedOrderEvent(BaseModel):
     order_id: str = Field(default_factory=lambda: str(uuid.uuid4()))

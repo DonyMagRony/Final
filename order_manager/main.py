@@ -14,17 +14,15 @@ import logging #
 
 from . import config, crud, kafka_client, models
 
-# Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# --- Global variables ---
 kafka_consumer_task = None
 
 async def process_validated_order(order_data: dict):
     """Processes a single validated order message."""
-    order: models.ValidatedOrderEvent | None = None # Define order variable
-    order_id = "N/A" # Default in case of early failure
+    order: models.ValidatedOrderEvent | None = None
+    order_id = "N/A"
     try:
         # Parse incoming message first
         order = models.ValidatedOrderEvent(**order_data)
@@ -35,8 +33,8 @@ async def process_validated_order(order_data: dict):
         inventory_check_payload = {
             "items": [{"item_id": item.item_id, "quantity": item.quantity} for item in order.items]
         }
-        inventory_ok = False # Default to False
-        inventory_response_details = "Inventory check not performed" # Default detail
+        inventory_ok = False
+        inventory_response_details = "Inventory check not performed"
 
         # Ensure there are items to check
         if not inventory_check_payload["items"]:
@@ -45,33 +43,28 @@ async def process_validated_order(order_data: dict):
              inventory_response_details = {"error": "Order contains no items"}
         else:
             try:
-                # Use an async HTTP client with context manager
                 async with httpx.AsyncClient(base_url=config.INVENTORY_SERVICE_URL, timeout=10.0) as client:
                     response = await client.post(
-                        "/check_inventory", # Endpoint relative to base_url
+                        "/check_inventory",
                         json=inventory_check_payload
                     )
-                    # Check for HTTP errors (4xx, 5xx)
                     response.raise_for_status()
-                    # Process successful response
                     inventory_response_data = response.json()
-                    inventory_ok = inventory_response_data.get("all_available", False) # Get the boolean result
-                    inventory_response_details = inventory_response_data.get("details", []) # Get specific details
+                    inventory_ok = inventory_response_data.get("all_available", False)
+                    inventory_response_details = inventory_response_data.get("details", [])
                     logger.info(f"Inventory check result for {order_id}: Available={inventory_ok}")
 
             except httpx.HTTPStatusError as e:
-                # Error response from inventory service
+
                 error_body = e.response.text
                 logger.error(f"Inventory service returned status {e.response.status_code} for order {order_id}. Response: {error_body[:500]}") # Log truncated body
                 inventory_ok = False
                 inventory_response_details = {"error": f"Inventory service status error {e.response.status_code}", "details": error_body[:500]}
             except httpx.RequestError as e:
-                # Network or connection error
                 logger.error(f"Could not connect to inventory service ({e.request.url}) for order {order_id}: {e}")
                 inventory_ok = False
                 inventory_response_details = {"error": f"Inventory service connection error: {e}"}
             except Exception as e:
-                # Catch any other unexpected errors during the check
                 logger.exception(f"Unexpected error during inventory check for order {order_id}: {e}")
                 inventory_ok = False
                 inventory_response_details = {"error": f"Inventory check unexpected error: {e}"}
@@ -81,7 +74,6 @@ async def process_validated_order(order_data: dict):
         if not inventory_ok:
             logger.warning(f"Inventory check failed or unavailable for order {order_id}. Setting status to FAILED.")
             status = "FAILED"
-            # Include details from the inventory check in the failure reason
             failure_details = {"reason": "Inventory unavailable or check failed", "inventory_response": inventory_response_details}
             await crud.set_order_status(order_id, status, failure_details)
             # Publish Status Update Event
@@ -92,7 +84,7 @@ async def process_validated_order(order_data: dict):
             # Publish DB Write Event
             db_event = models.DbWriteOrderStatusEvent(order_id=order_id, status=status, timestamp=time.time())
             await kafka_client.send_message(config.DB_WRITE_ORDER_STATUS_TOPIC, db_event.model_dump())
-            return # Stop processing this order
+            return
 
         # --- Inventory Available - Continue Processing ---
         # If the code reaches here, inventory_ok must have been True
@@ -103,18 +95,17 @@ async def process_validated_order(order_data: dict):
         # Prepare payload using data from the validated order event
         pricing_payload = {
             "order_id": order.order_id,
-            "items": [item.model_dump() for item in order.items] # Pass item details including price
+            "items": [item.model_dump() for item in order.items]
         }
         price_calculated_successfully = False
-        pricing_response_info = "Pricing check not performed" # Default detail
+        pricing_response_info = "Pricing check not performed"
 
         try:
             async with httpx.AsyncClient(base_url=config.PRICING_SERVICE_URL, timeout=10.0) as client:
                 response = await client.post("/calculate_price", json=pricing_payload)
-                response.raise_for_status() # Raise exception for 4xx/5xx status codes
+                response.raise_for_status()
                 pricing_data = response.json()
 
-                # Store calculated prices back onto the order object
                 order.calculated_base_total = pricing_data.get("base_total")
                 order.calculated_discount = pricing_data.get("discount_applied")
                 order.calculated_fees = pricing_data.get("fees_applied")
@@ -168,12 +159,7 @@ async def process_validated_order(order_data: dict):
         processing_db_event = models.DbWriteOrderStatusEvent(order_id=order_id, status=processing_status, timestamp=time.time()) # May want price in DB event too
         await kafka_client.send_message(config.DB_WRITE_ORDER_STATUS_TOPIC, processing_db_event.model_dump())
 
-
-        # 4. Simulate further processing (e.g., payment confirmation)
-        await asyncio.sleep(config.SIMULATE_PROCESSING_DELAY_SECONDS * 2) # Simulate work
-
-        # 5. Update Status to CONFIRMED
-        # IMPORTANT: In a real system, payment confirmation would happen here BEFORE confirming.
+        # 4. Update Status to CONFIRMED
         # Stock decrement would typically happen AFTER payment confirmation.
         confirmed_status = "CONFIRMED"
         await crud.set_order_status(order_id, confirmed_status, processing_details) # Keep price details in status
@@ -190,12 +176,10 @@ async def process_validated_order(order_data: dict):
     # --- Exception Handling for the whole process ---
     except ValidationError as e:
         logger.error(f"Invalid order message format received: {order_data}. Error: {e}")
-        # Handle: Log, potentially move to Dead Letter Queue (DLQ)
     except Exception as e:
         order_id_for_error = order.order_id if order else order_data.get('order_id', 'N/A')
         logger.exception(f"CRITICAL: Unhandled error processing order {order_id_for_error}: {e}")
-        # Handle: Log, potentially mark order as SYSTEM_ERROR in Redis/DB via Kafka event, DLQ?
-        if order_id != "N/A": # If we parsed the order ID before crashing
+        if order_id != "N/A":
              try:
                   status = "SYSTEM_ERROR"
                   error_details = {"reason": "Unhandled exception during processing", "error": str(e)}
@@ -214,17 +198,15 @@ async def consume_orders():
         bootstrap_servers=config.KAFKA_BOOTSTRAP_SERVERS,
         group_id=config.KAFKA_CONSUMER_GROUP,
         value_deserializer=lambda v: json.loads(v.decode('utf-8')),
-        auto_offset_reset='earliest', # Start reading from the beginning if no offset found
-        enable_auto_commit=True, # Auto commit offsets (can be False for manual control)
-        # Use max_poll_records=1 for sequential processing if needed, but lowers throughput
+        auto_offset_reset='earliest',
+        enable_auto_commit=True,
+
     )
     await consumer.start()
     logger.info(f"Kafka consumer started for topic '{config.ORDER_VALIDATED_TOPIC}'")
     try:
         async for msg in consumer:
             logger.debug(f"Received raw message: {msg.value}")
-            # Run processing in background to not block consumer loop?
-            # For simplicity here, we await directly. Consider asyncio.create_task for concurrency.
             await process_validated_order(msg.value)
     except Exception as e:
          logger.exception(f"Kafka consumer error: {e}")
@@ -246,7 +228,7 @@ async def lifespan(app: FastAPI):
     loop = asyncio.get_running_loop()
     kafka_consumer_task = loop.create_task(consume_orders())
 
-    yield # Application runs here
+    yield # Application
 
     logger.info("Application shutdown...")
     # Stop background tasks
@@ -264,8 +246,6 @@ async def lifespan(app: FastAPI):
     await kafka_client.stop_kafka_producer()
     # Redis pool cleanup isn't strictly necessary with redis-py's async pool management
 
-
-# --- FastAPI App ---
 app = FastAPI(
     title="Order Manager Service",
     description="Manages order status updates, consumes validated orders from Kafka, updates Redis, and publishes status events.",
@@ -275,7 +255,6 @@ app = FastAPI(
 
 @app.get("/health", summary="Health Check", tags=["Monitoring"])
 async def health_check():
-    # Add checks for Kafka/Redis connectivity if needed
     return {"status": "ok"}
 
 @app.get("/orders/{order_id}/status", summary="Get Order Status from Cache", tags=["Orders"], response_model=dict)
@@ -287,4 +266,3 @@ async def get_order_status_endpoint(order_id: str):
     else:
         raise HTTPException(status_code=404, detail=f"Status not found for order {order_id}")
 
-# You could add more endpoints if needed, e.g., manually trigger processing (for testing)

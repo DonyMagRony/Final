@@ -30,7 +30,6 @@ async def set_order_status(order_id: str, status: str, details: dict | None = No
         logger.debug(f"Set status for order {order_id} to {status} in Redis")
     except Exception as e:
         logger.error(f"Failed to set status for order {order_id} in Redis: {e}")
-        # Decide on error handling - raise? retry?
 
 async def get_order_status(order_id: str) -> dict | None:
     """Retrieves the current status of an order from Redis."""
@@ -43,4 +42,4 @@ async def get_order_status(order_id: str) -> dict | None:
         return None
     except Exception as e:
         logger.error(f"Failed to get status for order {order_id} from Redis: {e}")
-        return None # Or raise
+        return None

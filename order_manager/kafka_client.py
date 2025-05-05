@@ -15,7 +15,7 @@ async def get_kafka_producer():
         producer = AIOKafkaProducer(
             bootstrap_servers=config.KAFKA_BOOTSTRAP_SERVERS,
             value_serializer=lambda v: json.dumps(v).encode('utf-8'),
-            acks='all' # Ensure messages are received by replicas
+            acks='all'
         )
         await producer.start()
     return producer
@@ -35,8 +35,3 @@ async def send_message(topic: str, message: dict):
         logger.debug(f"Message sent to Kafka topic '{topic}': {message}")
     except Exception as e:
         logger.error(f"Failed to send message to Kafka topic '{topic}': {e}")
-        # Implement retry logic or raise exception as needed
-
-
-# Consumer setup is slightly different, often run in a background task
-# We will initialize and run the consumer loop in main.py

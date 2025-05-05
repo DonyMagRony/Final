@@ -1,4 +1,4 @@
-import os # Make sure os is imported
+import os
 
 PRICING_SERVICE_URL = os.getenv("PRICING_SERVICE_URL", "http://pricing_service:8002")
 INVENTORY_SERVICE_URL = os.getenv("INVENTORY_SERVICE_URL", "http://inventory_service:8001")

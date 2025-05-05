@@ -64,9 +64,6 @@ async def check_inventory_endpoint(
               detail=f"An unexpected error occurred during inventory check: {e}"
          )
 
-
-# --- Optional CRUD Endpoints for direct management ---
-
 @app.post(
      "/items/",
      response_model=schemas.InventoryItemRead,

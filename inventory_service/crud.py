@@ -21,7 +21,7 @@ async def check_items_availability(db: AsyncSession, items_to_check: list[schema
     # Select inventory items matching the requested IDs
     stmt = select(models.InventoryItem).where(models.InventoryItem.item_id.in_(item_ids))
     result = await db.execute(stmt)
-    # Create a dictionary for quick lookup: {item_id: db_stock_count}
+
     fetched_items_stock = {item.item_id: item.stock_count for item in result.scalars().all()}
     logger.debug(f"Fetched stock counts: {fetched_items_stock}")
 
@@ -36,7 +36,6 @@ async def check_items_availability(db: AsyncSession, items_to_check: list[schema
                 current_stock=current_stock
             )
         else:
-            # Item not found in DB OR stock is insufficient
             all_available = False
             item_detail = schemas.ItemAvailabilityDetail(
                 item_id=item_id,
