@@ -1,0 +1,6 @@
+fastapi
+uvicorn[standard]
+aiokafka
+redis[hiredis]
+pydantic
+httpx[http2]

@@ -1,5 +1,7 @@
-import os
+import os # Make sure os is imported
 
+PRICING_SERVICE_URL = os.getenv("PRICING_SERVICE_URL", "http://pricing_service:8002")
+INVENTORY_SERVICE_URL = os.getenv("INVENTORY_SERVICE_URL", "http://inventory_service:8001")
 KAFKA_BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "kafka:9092")
 KAFKA_CONSUMER_GROUP = os.getenv("KAFKA_CONSUMER_GROUP", "order_manager_group")
 

@@ -3,3 +3,5 @@ uvicorn[standard]
 aiokafka
 redis[hiredis] # hiredis provides a C parser for performance
 pydantic
+psycopg2-binary
+httpx[http2]

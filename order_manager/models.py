@@ -12,7 +12,10 @@ class ValidatedOrderEvent(BaseModel):
     user_id: str
     items: List[OrderItem]
     total_amount: float
-    # Add other relevant fields like delivery_address, restaurant_id etc. if needed
+    calculated_base_total: float | None = None
+    calculated_discount: float | None = None
+    calculated_fees: float | None = None
+    calculated_final_total: float | None = None
 
 class OrderStatusUpdateEvent(BaseModel):
     order_id: str
@@ -24,4 +27,4 @@ class DbWriteOrderStatusEvent(BaseModel):
     order_id: str
     status: str
     timestamp: float
-    # Include any other data needed for the DB record
+
