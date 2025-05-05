@@ -37,11 +37,9 @@ The system consists of the following core components:
 * **Kafka (`kafka` & `zookeeper`):** Acts as the central message broker for asynchronous communication between services. Key topics:
     * `validated_orders`: Input topic for orders ready for processing.
     * `order_status_updates`: Topic where `order_manager` publishes general status changes.
-    * `db_write_order_status`: Topic where `order_manager` publishes enriched data for orders reaching a final state, intended for persistence.
 * **Redis (`redis`):** An in-memory data store used as a cache to hold the *current* status of orders for quick lookups. Status keys have a TTL (Time-To-Live).
 * **PostgreSQL (`postgres`):** A relational database used for:
     * Storing inventory item stock counts (accessed by `inventory_service`).
-    * *Intended* persistent storage for final order details (via the `orders` table).
 
 **Missing Components:**
 
@@ -75,12 +73,6 @@ The system consists of the following core components:
     * `pricing_service/` (with its Python files and `Dockerfile`)
     * `postgres_init/` (containing `init-db.sql`)
     * `docker-compose.yaml`
-3.  **(Optional) Environment Variables:** The `docker-compose.yaml` uses default credentials for PostgreSQL (`user`/`password`/`food_delivery_db`). You can override these by creating a `.env` file in the root directory with:
-    ```dotenv
-    POSTGRES_USER=your_custom_user
-    POSTGRES_PASSWORD=your_secure_password
-    POSTGRES_DB=your_custom_db_name
-    ```
 
 ## Running the System
 
